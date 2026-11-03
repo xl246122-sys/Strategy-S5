@@ -1,10 +1,18 @@
-"""S5 position contract. Guardian does not call this module."""
+"""S5 position contract. The global Guardian does not call this module."""
+
+from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 from bstocks_v2.contracts.errors import OrderRejected
+from bstocks_v2.portfolio_risk.authority import PortfolioRisk
 from bstocks_v2.strategies.s5.lock import s5_live_enabled
+
+if TYPE_CHECKING:
+    from bstocks_v2.strategies.s5.book import S5ResearchBook
 
 STRATEGY_ID = "S5_EOD_REVERSAL"
 
@@ -41,7 +49,7 @@ def research_policy() -> PositionPolicy:
 
 
 class S5GuardianPolicy:
-    """Reserved interface. ``governs`` stays false until a later approved phase."""
+    """Not installed on the global Guardian. ``governs`` stays false."""
 
     def __init__(self, policy: PositionPolicy | None = None) -> None:
         self.policy = research_policy() if policy is None else policy
@@ -54,3 +62,12 @@ class S5GuardianPolicy:
     def on_clock(self, now_et: datetime) -> None:
         del now_et
         raise OrderRejected("S5_POLICY_INACTIVE")
+
+    def open_research(self, root: Path, risk: PortfolioRisk) -> S5ResearchBook:
+        """Mock book only. `governs` stays false, so the 15:55 flatten is not this object."""
+
+        if s5_live_enabled() or self.policy.live_enabled or self.policy.active:
+            raise RuntimeError("S5 code lock drifted")
+        from bstocks_v2.strategies.s5.book import S5ResearchBook
+
+        return S5ResearchBook.open(root, risk)

@@ -11,6 +11,8 @@ from typing import TypeVar
 from bstocks_v2.constitution.guard import (
     CLIENT_ORDER_ID,
     NEW_YORK,
+    SESSION_POLICY_GLOBAL,
+    SESSION_POLICY_S5_RESEARCH,
     ConstitutionGuard,
     live_trade_enabled,
 )
@@ -62,6 +64,7 @@ class EntryRequest:
     take_profit_price: Decimal
     now_et: datetime
     is_half_day: bool = False
+    trading_session: TradingSession = TradingSession.RTH
 
 
 @dataclass(frozen=True)
@@ -199,7 +202,12 @@ class PortfolioRisk:
 
         return self._run(read)
 
-    def approve(self, request: EntryRequest) -> EntryDecision:
+    def approve(
+        self,
+        request: EntryRequest,
+        *,
+        session_policy: str = SESSION_POLICY_GLOBAL,
+    ) -> EntryDecision:
         cancels: list[tuple[str, str]] = []
 
         def decide() -> EntryDecision:
@@ -219,7 +227,10 @@ class PortfolioRisk:
                 )
             try:
                 self._guard.check_order(
-                    _draft(request),
+                    _draft(
+                        request,
+                        research_only=session_policy == SESSION_POLICY_S5_RESEARCH,
+                    ),
                     now_et=request.now_et,
                     is_half_day=request.is_half_day,
                     open_positions=view.slots,
@@ -227,6 +238,7 @@ class PortfolioRisk:
                     equity=view.equity,
                     hwm=view.hwm,
                     entries_halted=view.halt_new_entries,
+                    session_policy=session_policy,
                 )
             except OrderRejected as exc:
                 return EntryDecision(
@@ -253,6 +265,33 @@ class PortfolioRisk:
         decision = self._run(decide)
         self._dispatch(cancels)
         return decision
+
+    def cancel_unfilled(self, client_order_id: str) -> None:
+        """Drop a research buy that never traded. A partial or a fill stays on the book."""
+
+        def apply() -> None:
+            found = _order_map(self._store.orders()).get(client_order_id)
+            if found is None:
+                raise OrderRejected("UNKNOWN_ORDER")
+            if found.status == "CANCELED":
+                return
+            if found.status == "FILLED" or found.filled_qty > 0:
+                raise OrderRejected("PARTIAL_OPEN")
+            self._store.replace_order(
+                OrderRow(
+                    found.client_order_id,
+                    found.symbol,
+                    "CANCELED",
+                    found.limit_price,
+                    found.quantity,
+                    found.filled_qty,
+                    found.filled_notional,
+                    found.total_cost_raw,
+                    found.rest_fee,
+                )
+            )
+
+        self._run(apply)
 
     def on_buy_report(
         self,
@@ -802,7 +841,7 @@ class PortfolioRisk:
             self._gateway.cancel_buy(client_order_id, symbol)
 
 
-def _draft(request: EntryRequest) -> OrderDraft:
+def _draft(request: EntryRequest, *, research_only: bool) -> OrderDraft:
     gross = (request.take_profit_price - request.limit_price) * request.quantity
     friction = (
         COMMISSION_RATE * (request.limit_price + request.take_profit_price) * request.quantity
@@ -815,7 +854,7 @@ def _draft(request: EntryRequest) -> OrderDraft:
         client_order_id=request.client_order_id,
         quantity=request.quantity,
         price=request.limit_price,
-        trading_session=TradingSession.RTH,
+        trading_session=request.trading_session,
         quote_asset="USDC",
         wallet_type="CARD",
         tokenize=False,
@@ -823,6 +862,7 @@ def _draft(request: EntryRequest) -> OrderDraft:
         confirmed_long_qty=Decimal(0),
         gross_take_profit_usdc=gross,
         round_trip_friction_usdc=friction,
+        research_only=research_only,
     )
 
 

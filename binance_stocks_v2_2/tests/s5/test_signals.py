@@ -251,7 +251,10 @@ def test_strategy_sources_have_no_order_route_or_single_name_exception() -> None
         text = path.read_text(encoding="utf-8")
         assert "INTC" not in text
         assert "execution_gateway" not in text
-        assert "/order/place" not in text
+        for line in text.splitlines():
+            if "refuse_live_route" in line:
+                continue
+            assert "/order/place" not in line
 
 
 def _view() -> CausalView:

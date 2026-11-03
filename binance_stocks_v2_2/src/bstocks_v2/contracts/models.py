@@ -196,3 +196,4 @@ class OrderDraft(BaseModel):
     confirmed_long_qty: Quantity = Field(default=Decimal("0"))
     gross_take_profit_usdc: Money | None = None
     round_trip_friction_usdc: Money | None = None
+    research_only: bool = False

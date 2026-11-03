@@ -21,6 +21,9 @@ MIN_VIABLE_NOTIONAL = Decimal("120")
 MAX_OPEN_POSITIONS = 5
 HWM_RETAINED = Decimal("0.92")
 MAX_FRICTION_RATIO = Decimal("0.20")
+SESSION_POLICY_GLOBAL = "GLOBAL"
+SESSION_POLICY_S5_RESEARCH = "S5_RESEARCH"
+_SESSION_POLICIES = frozenset({SESSION_POLICY_GLOBAL, SESSION_POLICY_S5_RESEARCH})
 
 _IMMUTABLE: dict[str, object] = {
     "live_trade_enabled": False,
@@ -111,7 +114,15 @@ class ConstitutionGuard:
         equity: Decimal,
         hwm: Decimal,
         entries_halted: bool,
+        session_policy: str = SESSION_POLICY_GLOBAL,
     ) -> None:
+        if session_policy not in _SESSION_POLICIES:
+            raise OrderRejected("ENTRY_POLICY")
+        if session_policy == SESSION_POLICY_S5_RESEARCH:
+            if live_trade_enabled():
+                raise OrderRejected("S5_LIVE_FORBIDDEN")
+            if not draft.research_only:
+                raise OrderRejected("ENTRY_POLICY")
         self._field_matrix(draft)
         if CLIENT_ORDER_ID.fullmatch(draft.client_order_id) is None:
             raise OrderRejected("CLIENT_ORDER_ID")
@@ -131,6 +142,7 @@ class ConstitutionGuard:
                 equity=equity,
                 hwm=hwm,
                 entries_halted=entries_halted,
+                session_policy=session_policy,
             )
 
     def _field_matrix(self, draft: OrderDraft) -> None:
@@ -171,8 +183,9 @@ class ConstitutionGuard:
         equity: Decimal,
         hwm: Decimal,
         entries_halted: bool,
+        session_policy: str,
     ) -> None:
-        if not entry_window_open(now_et, is_half_day):
+        if session_policy == SESSION_POLICY_GLOBAL and not entry_window_open(now_et, is_half_day):
             raise OrderRejected("NON_RTH")
         if open_positions + pending_buys >= MAX_OPEN_POSITIONS:
             raise OrderRejected("MAX_POSITIONS")
