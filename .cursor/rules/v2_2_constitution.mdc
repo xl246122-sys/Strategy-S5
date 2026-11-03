@@ -1,0 +1,54 @@
+---
+description: Binance Stocks V2.2 项目宪法与 U1-U8 不可妥协铁律。所有阶段的代码审查最高准则。
+alwaysApply: true
+---
+
+# V2.2 项目宪法（U1–U8）
+
+本地根目录 `D:\Strategy`。日本服务器 `43.163.203.127`（Ubuntu 26.04.1 LTS，用户 `ubuntu`，sudo 免密）。研发目录：本地 `D:\Strategy\binance_stocks_v2_2`，服务器 `/home/ubuntu/binance_stocks_v2_2`。历史库落在 `D:\Strategy\data_v2_2\`。阶段 0–14 禁止真实下单。每次只完成当前阶段，输出验收报告后停止，等待投资人批准。禁止把密码或 API Key 写入代码、Git 或临时脚本；SSH 只用免密密钥。
+
+## (1) 市场与接口边界
+
+只交易 Binance Stocks 美国上市个股与 ETF（`api.binance.com/sapi/v1/equity/*`）。只读白名单仅两项：SAPI Funding 钱包（`/sapi/v1/asset/get-funding-asset`）与 Alpaca Market Data 历史/断流回补。禁止加密货币、合约、杠杆、做空，以及 `/tokenized/mint`、`/tokenized/redeem`。
+
+## (2) 订单与钱包
+
+`quoteAsset=USDC`。所有 `BUY` 必须显式传 `walletType="CARD"` 与 `tokenize=false`。首次交易前必查 `/sapi/v1/equity/account/disclaimer`（防 `486410`）。`BUY LIMIT` / `SELL LIMIT` 必填 `price, quantity, tradingSession`，禁止 `notional`。`SELL MARKET` 必填 `quantity`，禁止 `price, notional, tradingSession`。开仓禁止 `BUY MARKET`。`price` 最多 2 位小数。`clientOrderId` 必须匹配 `^[a-zA-Z0-9-_]{32,36}$`。
+
+## (3) V2.2-U1 防 `tc - FN` 佣金陷阱
+
+`{listenKey}@orderReport` 的 `b` 带 `EQ_` 前缀，`S/o/s` 全小写，无 `clientOrderId`。当 `s != "filled"` 或 `fq < Q` 时，`tc` 含未成交本金，禁止用 `tc - FN` 计算已实现佣金或扣减 Equity，以免误触发 8% HWM 锁。终态佣金以 `GET /order/detail` 的 `fee` 为准。
+
+## (4) V2.2-U2 无历史 K 线 REST
+
+`/sapi/v1/equity/market/` 没有历史 K 线接口。每根实时 `@kline_5m` 必须写入 SQLite WAL 表 `intraday_bars_wal`，盘中重启 100ms 内热恢复。超过 5 分钟的断流缺口用只读 Alpaca SIP 分钟线回补，或标记 `vwap_intact=False` 并禁止进入日内累积指标策略。
+
+## (5) V2.2-U3 三维持仓对账
+
+用本地 SQLite 订单/成交账本、`/order/open-orders` 与 `/trade/history` 聚合、以及 SAPI `CARD` 钱包的 `USDC` 与 `EQ_*` 快照做三维交叉对账。
+
+## (6) V2.2-U4 日终强平与阶梯退出
+
+只在美股 RTH（09:30–16:00 ET，半日市 09:30–13:00 ET）开仓。15:45 ET（半日市 12:45 ET）停止新开仓。15:55:00 ET（半日市 12:55:00 ET）强制撤单并平仓，防止跨过 16:00 ET 触发 `486441`。Guardian 遇到 `-1112 NO_DEPTH` 或 `486413` 时，在价格笼子内降级为可成交的 Marketable `SELL LIMIT`；进入盘后时，整数股改用 `EXTENDED SELL LIMIT`。
+
+## (7) V2.2-U5 流健康度与 listenKey
+
+周期流（`price` / `@kline_5m` / `@quote`）才做时间戳陈旧门禁。`calendar` / `@tradability` / `@tradingStatus` 是无心跳的状态跳变流，禁止因全天无停牌而判为陈旧。`listenKey` 的创建和每 25 分钟续期统一调用签名接口 `POST /sapi/v1/equity/listenKey`。
+
+## (8) V2.2-U6 超时与撤单竞态
+
+遇到 `-1006` / `-1007` 禁止更换 `clientOrderId` 重发，必须先查 `/order/detail`。Guardian 撤止盈单进入 `CANCEL_PENDING_FOR_SL`。`486444` 时立即查 `/order/detail`：已 `FILLED` 则转入 `FLAT_RECONCILED`，禁止重复卖。`status="S"` 或 `486446` 必须等终态确认后，再对剩余未成份额平仓。
+
+## (9) V2.2-U7 与 P0-2/P1-1 资金风控
+
+初始规划 `1,600 USDC`。最多同时 5 仓（含在途买单占槽位）。单笔风险预算默认 `0.25%`（约 `4 USDC`）。单仓上限 `20%`（约 `320 USDC`）。`min_viable_notional_usdc = 120 USDC`。双边总摩擦占目标止盈毛利不超过 `20%`。分数股被 `486442` 拒绝时向下取整数股。8% HWM 回撤锁跨重启持久化，只有人工可解锁。内置 PDT `486440` 滚动 5 个交易日计数器。
+
+## (10) V2.2-U8 可复现数学与防伪发现
+
+回测强制 `Low <= L - delta` 穿透成交。同一根 K 线同时触及止盈和止损时，下钻 1 分钟复核，仍冲突则按悲观止损计。必须通过四阶消融、Deflated Sharpe Ratio (DSR) 和核心超参 ±15% 邻域平稳性检验。阶段 0–14 禁止干扰现有生产系统，禁止真实下单。金额、价格、份额用 `decimal.Decimal`，禁止用 `float`。
+
+## 执行红线
+
+- 外部配置不能绕过 `ConstitutionGuard`。
+- `live_trade_enabled` 默认 `False`。S4 双重锁定 `live_enabled = False`。
+- 阶段 15 实盘必须另有投资人书面授权。Lockbox（`2026-05-01` 至 `2026-10-30`）在参数冻结后只允许跑一次。

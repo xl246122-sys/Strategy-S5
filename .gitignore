@@ -1,0 +1,24 @@
+# Credentials and secrets — never commit
+Dev.Plan/ServerStation.txt
+*.env
+*secret*
+*api-key*
+*API-KEY*
+_ssh_*.py
+*.pem
+*.key
+
+# Local environments and tool caches
+.venv/
+__pycache__/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.pyc
+*.egg-info/
+
+# Research stores stay outside the code snapshot
+data_v2_2/
+*.sqlite
+.coverage
+desktop.ini
