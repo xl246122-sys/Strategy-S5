@@ -1,0 +1,12 @@
+---
+description: 安装包只输出到 D:\Strategy\release，版本从 Strategy-V1.01 起每次加 0.01
+alwaysApply: true
+---
+
+# 安装包发布
+
+Android 及其他安装包的交付文件只放在 `D:\Strategy\release\`。不要把 `app\build` 里的 APK 当作交付物。
+
+文件名是 `Strategy-V` 加两位小数版本号，例如 `Strategy-V1.01.apk`。已发布版本记在 `D:\Strategy\release\VERSION.txt`（一行，如 `1.01`）。下一次发布在该数字上加 `0.01`，仍保留两位小数：`1.01` 之后是 `1.02`，再之后是 `1.03`。应用内 `versionName` 与文件名中的版本号一致，`versionCode` 每次加 1。
+
+发布完成后覆盖 `VERSION.txt`，并确认新文件在 `D:\Strategy\release\` 下。

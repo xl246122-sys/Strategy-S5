@@ -1,0 +1,25 @@
+<Window x:Class="PaperDesk.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="V2.2 模拟盘"
+        Height="780"
+        Width="440"
+        WindowStartupLocation="CenterScreen"
+        Background="#101114"
+        Foreground="#ECEAE4"
+        FontFamily="Segoe UI">
+  <DockPanel>
+    <UniformGrid x:Name="TabBar" DockPanel.Dock="Bottom" Rows="1" Columns="6" Background="#181A1F"/>
+    <Border x:Name="Notice" DockPanel.Dock="Top" Visibility="Collapsed"
+            Margin="12,12,12,0" Padding="12" Background="#1C1E23" BorderBrush="#D7B56D" BorderThickness="1">
+      <StackPanel>
+        <TextBlock x:Name="NoticeTitle" FontSize="16"/>
+        <TextBlock x:Name="NoticeBody" TextWrapping="Wrap" Margin="0,8,0,10" Foreground="#A7A39A"/>
+        <Button Content="知道了" HorizontalAlignment="Left" Padding="12,6" Click="DismissNotice"/>
+      </StackPanel>
+    </Border>
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+      <StackPanel x:Name="Body" Margin="16"/>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

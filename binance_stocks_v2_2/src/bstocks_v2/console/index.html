@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>V2.2 QUANT DESK · 量化模拟终端</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0a0c10;
+      --surface: #12151c;
+      --surface-elevated: #191d27;
+      --card: #161a23;
+      --border: #242a38;
+      --border-active: #3b455b;
+      --gold: #e5c07b;
+      --gold-bright: #ffd580;
+      --gold-dim: #2e2618;
+      --gold-glow: rgba(229, 192, 123, 0.2);
+      --mint: #10b981;
+      --mint-dim: #0b3326;
+      --coral: #f43f5e;
+      --coral-dim: #3d141e;
+      --sky: #38bdf8;
+      --sky-dim: #0f3144;
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text-primary);
+      -webkit-font-smoothing: antialiased;
+    }
+    header, main {
+      max-width: 580px;
+      margin: 0 auto;
+      padding: 16px 16px 96px;
+    }
+    header { padding-bottom: 0; padding-top: max(16px, env(safe-area-inset-top)); }
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .pulse-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--mint);
+      box-shadow: 0 0 8px var(--mint);
+      animation: pulse 2s infinite ease-in-out;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.4; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1.1); }
+    }
+    .brand-title {
+      font-size: 15px;
+      font-weight: 700;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: 0.5px;
+      color: var(--text-primary);
+    }
+    .ver-badge {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--gold);
+      background: var(--gold-dim);
+      border: 1px solid rgba(229, 192, 123, 0.4);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ping-chip {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--mint);
+      background: var(--surface-elevated);
+      border: 1px solid var(--border);
+      padding: 3px 8px;
+      border-radius: 12px;
+    }
+    .banner {
+      margin-top: 10px;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-secondary);
+      font-size: 12px;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .hero-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .hero-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .strat-badge {
+      background: var(--gold);
+      color: var(--bg);
+      font-size: 13px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 6px;
+    }
+    .hero-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-left: 8px;
+    }
+    .status-tag {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+    .status-tag.running { background: var(--mint-dim); color: var(--mint); border: 1px solid var(--mint); }
+    .status-tag.halted { background: var(--coral-dim); color: var(--coral); border: 1px solid var(--coral); }
+    .reason-box {
+      margin-top: 10px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin: 12px 0 16px;
+    }
+    .stat {
+      padding: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .stat span { font-size: 11px; color: var(--text-muted); font-weight: 500; display: block; }
+    .stat b { font-size: 20px; font-weight: 700; color: var(--text-primary); margin-top: 2px; display: block; }
+    .stat.gold b { color: var(--gold); }
+    .stat.sky b { color: var(--sky); }
+    .stat.mint b { color: var(--mint); }
+    .stat.coral b { color: var(--coral); }
+    
+    .section-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 18px 0 8px;
+    }
+    .section-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .section-badge {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--gold);
+      background: var(--card);
+      padding: 2px 8px;
+      border-radius: 6px;
+    }
+    .empty-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    th, td {
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      color: var(--text-muted);
+      font-weight: 600;
+      background: #0f1218;
+      font-size: 11px;
+    }
+    tr:last-child td { border-bottom: 0; }
+    
+    /* Toolbar & Search */
+    /* Strategy Integrated Cockpit */
+    .strategy-cockpit {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+    }
+    .cockpit-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .cockpit-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .cockpit-sub {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--gold);
+      margin-top: 2px;
+    }
+    .cockpit-regime {
+      font-size: 10px;
+      color: var(--text-secondary);
+      background: var(--card);
+      border: 1px solid var(--border);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .cockpit-metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      padding: 8px 0;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      margin: 8px 0 6px;
+    }
+    .cp-metric {
+      display: flex;
+      flex-direction: column;
+    }
+    .cp-label {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+    .cp-val {
+      font-size: 13px;
+      font-weight: 700;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      color: var(--text-primary);
+      margin-top: 2px;
+    }
+    .cp-val.gold { color: var(--gold); }
+    .cp-val.sky { color: var(--sky); }
+    .cp-val.mint { color: var(--mint); }
+    .cp-val.coral { color: var(--coral); }
+    .cockpit-status-bar {
+      font-size: 11px;
+      text-align: center;
+      padding: 3px 6px;
+      background: var(--card);
+      border-radius: 4px;
+      color: var(--text-muted);
+    }
+    .status-active {
+      color: var(--gold-bright);
+      font-weight: 600;
+    }
+
+    .filter-toolbar {
+      margin: 8px 0 12px;
+    }
+    .search-box {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: var(--text-primary);
+      font-size: 13px;
+      outline: none;
+      margin-bottom: 8px;
+    }
+    .search-box:focus { border-color: var(--gold); }
+    .filter-chips {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .filter-chip {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .filter-chip.active {
+      background: var(--gold);
+      color: var(--bg);
+      border-color: var(--gold);
+    }
+    .sort-chip {
+      margin-left: auto;
+      background: var(--surface-elevated);
+      color: var(--gold);
+    }
+
+    /* Candidate Cards */
+    .candidate-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .candidate-card:hover { border-color: var(--border-active); }
+    .candidate-card.ready { background: var(--gold-dim); border-color: var(--gold); }
+    .cand-left { flex: 1; min-width: 0; }
+    .cand-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .cand-sym {
+      font-size: 16px;
+      font-weight: 700;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      color: var(--text-primary);
+    }
+    .cand-ind {
+      font-size: 11px;
+      color: var(--text-secondary);
+      background: var(--card);
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+    .star-btn {
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 0 4px;
+    }
+    .star-btn.starred { color: var(--gold); }
+    .cand-gate {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin: 3px 0 6px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .meter-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .meter-cap {
+      width: 18px;
+      height: 6px;
+      background: var(--border);
+      border-radius: 2px;
+    }
+    .meter-cap.filled { background: var(--gold); box-shadow: 0 0 4px var(--gold-glow); }
+    .meter-pct {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--gold);
+      margin-left: 4px;
+    }
+    .cand-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+    }
+    .cand-price {
+      font-size: 16px;
+      font-weight: 700;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      color: var(--text-primary);
+    }
+    .spark {
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--bg);
+      display: block;
+    }
+
+    /* Modal / Dialog */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 1000;
+    }
+    .modal-card {
+      width: min(480px, 100%);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.6);
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .modal-close {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    /* Nav Bar */
+    nav {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      max-width: 580px;
+      margin: 0 auto;
+      z-index: 200;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    nav button {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: var(--text-secondary);
+      padding: 10px 0 12px;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+    }
+    nav button[aria-current="page"] { color: var(--gold-bright); }
+    nav button[aria-current="page"] .nav-indicator {
+      width: 20px;
+      height: 3px;
+      background: var(--gold);
+      border-radius: 2px;
+    }
+    .nav-indicator { width: 20px; height: 3px; background: transparent; }
+
+    /* Toast */
+    #toast[hidden] { display: none; }
+    #toast {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 16px;
+      z-index: 500;
+    }
+    #toast article {
+      width: min(440px, 100%);
+      background: var(--surface);
+      border: 1px solid var(--gold);
+      border-radius: 12px;
+      padding: 16px;
+      margin-top: 40px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    }
+    #toast h2 { color: var(--gold-bright); font-size: 15px; margin: 0 0 6px; }
+    #toast p { color: var(--text-primary); font-size: 13px; margin: 0; }
+    #toast button {
+      margin-top: 12px;
+      padding: 6px 14px;
+      background: var(--gold);
+      color: var(--bg);
+      border: 0;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 12px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="top-bar">
+      <div class="brand">
+        <div class="pulse-dot" id="live-dot"></div>
+        <span class="brand-title">V2.2 QUANT DESK</span>
+        <span class="ver-badge">v1.06</span>
+      </div>
+      <div class="top-actions">
+        <span class="ping-chip" id="ping-badge">⚡ 32ms</span>
+        <button id="refresh-btn" style="background:var(--surface-elevated); border:1px solid var(--border); color:var(--text-secondary); border-radius:50%; width:30px; height:30px; cursor:pointer;">⟳</button>
+      </div>
+    </div>
+    <div class="banner" id="links">正在连接高频行情流...</div>
+  </header>
+
+  <main id="panel"></main>
+  <nav id="tabs"></nav>
+
+  <!-- Stock Detail Modal -->
+  <div id="modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card" id="modal-content"></div>
+  </div>
+
+  <!-- Alert Toast -->
+  <div id="toast" hidden role="alertdialog" aria-modal="true" aria-labelledby="toast-title">
+    <article>
+      <h2 id="toast-title">模拟消息</h2>
+      <p id="toast-body"></p>
+      <button id="toast-ok" type="button">知道了</button>
+    </article>
+  </div>
+
+  <script>
+    const StrategyMeta = {
+      "S1": ["S1 残差趋势", "Kalman+RLS日内波动率归"],
+      "S2": ["S2 VWAP 回踩", "VWAP/RSI(6)+多分类校准"],
+      "S3": ["S3 开盘区间突破", "ORB+RVOL+低延迟"],
+      "S4": ["S4 超卖均值反弹", "VWAP/RSI(6)"],
+      "S5": ["S5 尾盘极端反转", "尾盘因果反转模型"]
+    };
+
+    const tabSpecs = [
+      { id: "S1", code: "S1", name: "残差趋势" },
+      { id: "S2", code: "S2", name: "VWAP回踩" },
+      { id: "S3", code: "S3", name: "开盘突破" },
+      { id: "S4", code: "S4", name: "均值反弹" },
+      { id: "S5", code: "S5", name: "极端反转" },
+      { id: "状态", code: "状态", name: "系统监控" }
+    ];
+
+    const order = ["S1", "S2", "S3", "S4", "S5", "状态"];
+    let current = "S1";
+    const seen = new Set();
+    let primed = false;
+    let last = null;
+    let searchQuery = "";
+    let filterType = "ALL";
+    let sortOrder = "PROGRESS";
+    let watchlist = new Set(JSON.parse(localStorage.getItem("desk_watchlist") || "[]"));
+
+    const tabs = document.getElementById("tabs");
+    tabSpecs.forEach((tab) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.innerHTML = `<span style="font-size:13px; font-weight:700;">${tab.code}</span><span style="font-size:10px; color:var(--text-muted);">${tab.name}</span><span class="nav-indicator"></span>`;
+      button.dataset.strategy = tab.id;
+      button.addEventListener("click", () => {
+        current = tab.id;
+        paint(last);
+      });
+      tabs.appendChild(button);
+    });
+
+    const toast = document.getElementById("toast");
+    document.getElementById("toast-ok").addEventListener("click", () => { toast.hidden = true; });
+    document.getElementById("refresh-btn").addEventListener("click", () => { tick(); });
+
+    function renderSparkline(wave, width = 76, height = 34) {
+      if (!wave || !Array.isArray(wave) || wave.length < 2) {
+        return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" class="spark"><line x1="4" y1="${height / 2}" x2="${width - 4}" y2="${height / 2}" stroke="#242a38" stroke-width="1.5"/></svg>`;
+      }
+      const nums = wave.map(Number).filter(n => !isNaN(n));
+      if (nums.length < 2) {
+        return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" class="spark"><line x1="4" y1="${height / 2}" x2="${width - 4}" y2="${height / 2}" stroke="#242a38" stroke-width="1.5"/></svg>`;
+      }
+      const min = Math.min(...nums);
+      const max = Math.max(...nums);
+      const span = Math.max(max - min, 0.0001);
+      const isUp = nums[nums.length - 1] >= nums[0];
+      const strokeColor = isUp ? "#10b981" : "#f43f5e";
+      const padY = 3;
+      const padX = 3;
+      const innerW = width - padX * 2;
+      const innerH = height - padY * 2;
+      const pts = nums.map((val, idx) => ({
+        x: padX + (idx / (nums.length - 1)) * innerW,
+        y: height - padY - ((val - min) / span) * innerH
+      }));
+      let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = pts[i];
+        const p1 = pts[i + 1];
+        const cx = ((p0.x + p1.x) / 2).toFixed(1);
+        d += ` C ${cx} ${p0.y.toFixed(1)}, ${cx} ${p1.y.toFixed(1)}, ${p1.x.toFixed(1)} ${p1.y.toFixed(1)}`;
+      }
+      const fillD = `${d} L ${pts[pts.length - 1].x.toFixed(1)} ${height} L ${pts[0].x.toFixed(1)} ${height} Z`;
+      const gradId = "g_" + Math.random().toString(36).substring(2, 7);
+      return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" class="spark">
+        <defs>
+          <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="${strokeColor}" stop-opacity="0.3"/>
+            <stop offset="100%" stop-color="${strokeColor}" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path d="${fillD}" fill="url(#${gradId})"/>
+        <path d="${d}" fill="none" stroke="${strokeColor}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="${pts[pts.length - 1].x.toFixed(1)}" cy="${pts[pts.length - 1].y.toFixed(1)}" r="2.2" fill="${strokeColor}"/>
+      </svg>`;
+    }
+
+    function toggleWatchlist(sym) {
+      if (watchlist.has(sym)) watchlist.delete(sym);
+      else watchlist.add(sym);
+      localStorage.setItem("desk_watchlist", JSON.stringify(Array.from(watchlist)));
+      paint(last);
+    }
+
+    function openStockModal(item) {
+      const modal = document.getElementById("modal");
+      const content = document.getElementById("modal-content");
+      const sym = item.symbol;
+      const isStarred = watchlist.has(sym);
+      const prog = Number(item.progress) || 0;
+      let meters = "";
+      for (let i = 1; i <= 4; i++) {
+        meters += `<span class="meter-cap ${i <= Math.floor(prog / 25) ? 'filled' : ''}" style="height:8px; flex:1; border-radius:3px;"></span>`;
+      }
+
+      content.innerHTML = `
+        <div class="modal-header">
+          <div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:22px; font-weight:700; font-family:monospace;">${item.symbol}</span>
+              <span class="cand-ind" style="font-size:12px;">${item.industry || item.kind}</span>
+            </div>
+            <div style="font-size:13px; color:var(--text-secondary); margin-top:2px;">实时报价：$${item.price || "—"}</div>
+          </div>
+          <div class="modal-close" onclick="closeStockModal()">✕</div>
+        </div>
+        <div style="border-top:1px solid var(--border); padding-top:14px; margin-top:10px;">
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:6px;">策略形态拟合进度</div>
+          <div style="display:flex; align-items:center; gap:6px; margin-bottom:12px;">
+            <div style="display:flex; gap:4px; flex:1;">${meters}</div>
+            <span style="font-size:16px; font-weight:700; color:var(--gold);">${prog}%</span>
+          </div>
+          <div style="background:var(--card); border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:14px;">
+            <div style="color:var(--gold); font-size:12px; font-weight:700;">门禁判定诊断：</div>
+            <div style="color:var(--text-primary); font-size:13px; margin-top:4px;">${item.gate || "指标正常，处于策略跟踪窗口中。"}</div>
+          </div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:6px;">近 24 周期价格走势</div>
+          <div style="background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:8px; margin-bottom:16px;">
+            ${renderSparkline(item.wave, 430, 80)}
+          </div>
+          <div style="display:flex; gap:10px;">
+            <button onclick="toggleWatchlist('${sym}'); openStockModal(JSON.parse(decodeURIComponent('${encodeURIComponent(JSON.stringify(item))}')))" style="flex:1; padding:10px; background:${isStarred ? 'var(--gold-dim)' : 'var(--card)'}; border:1px solid ${isStarred ? 'var(--gold)' : 'var(--border)'}; color:${isStarred ? 'var(--gold)' : 'var(--text-secondary)'}; border-radius:8px; cursor:pointer; font-weight:600;">
+              ${isStarred ? '★ 已设为关注' : '☆ 加入关注'}
+            </button>
+            <button onclick="navigator.clipboard.writeText('${sym}'); alert('已复制代码 ${sym}')" style="flex:1; padding:10px; background:var(--gold); border:0; color:var(--bg); border-radius:8px; cursor:pointer; font-weight:700;">
+              📋 复制代码
+            </button>
+          </div>
+        </div>
+      `;
+      modal.style.display = "flex";
+    }
+
+    function closeStockModal() {
+      document.getElementById("modal").style.display = "none";
+    }
+
+    function renderStatus(state) {
+      const server = state.server || {};
+      const desks = state.desks || [];
+      const uptime = server.uptime_seconds || 0;
+      const uptimeStr = uptime < 60 ? `${uptime}秒` : `${Math.floor(uptime/60)}分 ${uptime%60}秒`;
+
+      let desksHtml = "";
+      desks.forEach(desk => {
+        const halted = desk.halt ? " · <span style='color:var(--coral)'>停开</span>" : "";
+        desksHtml += `
+          <div class="candidate-card" onclick="selectStrategy('${desk.strategy}')" style="margin-bottom:8px;">
+            <div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span class="strat-badge" style="font-size:11px;">${desk.strategy}</span>
+                <span style="font-weight:700;">${desk.title || ""}</span>
+                ${halted}
+              </div>
+              <div style="font-size:12px; color:var(--text-muted); margin-top:4px;">
+                ${desk.runtime || ""} · ${desk.reason || ""} · 持仓 ${(desk.positions||[]).length} · 挂单 ${(desk.working||[]).length}
+              </div>
+            </div>
+            <div style="font-size:16px; font-weight:700; color:var(--text-primary);">$${desk.equity || "0.00"}</div>
+          </div>
+        `;
+      });
+
+      return `
+        <div class="hero-card">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-size:16px; font-weight:700;">核心运行环境</div>
+            <span class="status-tag running">PID ${server.pid || "—"}</span>
+          </div>
+          <div style="margin-top:10px; font-size:12px; display:flex; flex-direction:column; gap:6px;">
+            <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted)">运行时长</span><span>${uptimeStr}</span></div>
+            <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted)">网络绑定</span><span>${server.bind || ""}</span></div>
+            <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted)">行情线程</span><span>${server.worker || "stopped"} (活跃轮询)</span></div>
+            <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted)">实盘安全锁</span><span style="color:var(--mint)">🔒 物理关闭 (live_trade_enabled=False)</span></div>
+            <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted)">Alpaca 回补</span><span>${state.alpaca || "未启动"}</span></div>
+            <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted)">交易日历</span><span>${state.calendar || "—"}</span></div>
+          </div>
+        </div>
+
+        <div class="hero-card">
+          <div style="font-size:15px; font-weight:700; margin-bottom:8px;">行情源接入详情 (Feed Ingestion)</div>
+          <div style="background:var(--card); border:1px solid var(--border); border-radius:8px; padding:10px; font-size:12px; color:var(--text-secondary); line-height:1.5;">
+            ${state.feed || "未连接行情流"}
+          </div>
+        </div>
+
+        <div class="section-title-row">
+          <div class="section-title">策略运行总览 (点击卡片可直达策略)</div>
+          <span class="section-badge">5 大策略</span>
+        </div>
+        ${desksHtml || "<div class='empty-card'>暂无策略数据</div>"}
+      `;
+    }
+
+    function selectStrategy(strat) {
+      current = strat;
+      paint(last);
+    }
+
+    function renderDesk(desk, state) {
+      if (!desk) return "<div class='empty-card'>未找到对应策略</div>";
+      const meta = StrategyMeta[desk.strategy] || ["量化策略", "核心模型"];
+      const halted = desk.halt;
+
+      let rawNames = desk.names || [];
+      let filtered = rawNames;
+      if (searchQuery) {
+        const q = searchQuery.toUpperCase();
+        filtered = filtered.filter(item => item.symbol.includes(q) || (item.industry && item.industry.includes(q)));
+      }
+      if (filterType === "ETF") filtered = filtered.filter(item => item.kind === "ETF");
+      else if (filterType === "STOCK") filtered = filtered.filter(item => item.kind !== "ETF");
+      else if (filterType === "READY") filtered = filtered.filter(item => item.progress >= 100);
+      else if (filterType === "WATCHLIST") filtered = filtered.filter(item => watchlist.has(item.symbol));
+
+      if (sortOrder === "PRICE") filtered.sort((a,b) => (Number(b.price)||0) - (Number(a.price)||0));
+      else if (sortOrder === "SYMBOL") filtered.sort((a,b) => a.symbol.localeCompare(b.symbol));
+      else filtered.sort((a,b) => {
+        const starA = watchlist.has(a.symbol) ? 1 : 0;
+        const starB = watchlist.has(b.symbol) ? 1 : 0;
+        if (starA !== starB) return starB - starA;
+        return (b.progress || 0) - (a.progress || 0);
+      });
+
+      const posRows = (desk.positions || []).map(item =>
+        `<tr>
+          <td style="font-weight:700; font-family:monospace;">${item.symbol}</td>
+          <td>${item.qty}</td>
+          <td>$${item.avg}</td>
+          <td>$${item.mark}</td>
+          <td>$${item.stop || "—"}</td>
+          <td>$${item.take_profit || "—"}</td>
+        </tr>`
+      ).join("");
+
+      const workRows = (desk.working || []).map(item =>
+        `<tr>
+          <td style="font-weight:700; font-family:monospace;">${item.symbol}</td>
+          <td>${item.qty}</td>
+          <td style="color:var(--sky); font-weight:700;">$${item.limit}</td>
+        </tr>`
+      ).join("");
+
+      const nameCards = filtered.map(item => {
+        const prog = Number(item.progress) || 0;
+        const isReady = prog >= 100;
+        const isStarred = watchlist.has(item.symbol);
+        let meters = "";
+        for (let i = 1; i <= 4; i++) {
+          meters += `<span class="meter-cap ${i <= Math.floor(prog / 25) ? 'filled' : ''}"></span>`;
+        }
+        const itemJson = encodeURIComponent(JSON.stringify(item));
+        return `
+          <div class="candidate-card ${isReady ? 'ready' : ''}" onclick="openStockModal(JSON.parse(decodeURIComponent('${itemJson}')))">
+            <div class="cand-left">
+              <div class="cand-header">
+                <span class="cand-sym">${item.symbol}</span>
+                ${item.industry ? `<span class="cand-ind">${item.industry}</span>` : ""}
+                <span class="star-btn ${isStarred ? 'starred' : ''}" onclick="event.stopPropagation(); toggleWatchlist('${item.symbol}')">${isStarred ? '★' : '☆'}</span>
+              </div>
+              <div class="cand-gate">${item.gate || "正常观测中"}</div>
+              <div class="meter-row">
+                ${meters}
+                <span class="meter-pct">${prog}%</span>
+              </div>
+            </div>
+            <div class="cand-right">
+              <span class="cand-price">$${item.price || "—"}</span>
+              ${renderSparkline(item.wave, 76, 34)}
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      const posCount = (desk.positions || []).length;
+      const workCount = (desk.working || []).length;
+      const hasActiveTrading = posCount > 0 || workCount > 0;
+
+      return `
+        <div class="strategy-cockpit">
+          <div class="cockpit-top">
+            <div>
+              <div class="cockpit-title">${meta[0]}</div>
+              <div class="cockpit-sub">${meta[1]}</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              ${desk.reason ? `<span class="cockpit-regime">${desk.reason}</span>` : ""}
+              <span class="status-tag ${halted ? 'halted' : 'running'}">${halted ? '停开保护' : (desk.runtime||'RUNNING').toUpperCase()}</span>
+            </div>
+          </div>
+          
+          <div class="cockpit-metrics">
+            <div class="cp-metric"><span class="cp-label">权益 USDC</span><b class="cp-val gold">$${desk.equity || "1,600"}</b></div>
+            <div class="cp-metric"><span class="cp-label">现金 USDC</span><b class="cp-val sky">$${desk.cash || "1,600"}</b></div>
+            <div class="cp-metric"><span class="cp-label">持仓标的</span><b class="cp-val ${posCount > 0 ? 'mint' : ''}">${posCount} 支</b></div>
+            <div class="cp-metric"><span class="cp-label">开仓门禁</span><b class="cp-val ${halted ? 'coral' : 'mint'}">${halted ? '停开保护' : '正常评估'}</b></div>
+          </div>
+
+          <div class="cockpit-status-bar">
+            ${!hasActiveTrading 
+              ? '<span>🛡️ 空仓 (0) · 无在途挂单 (0) · 风险中性</span>'
+              : `<span class="status-active">📊 活跃在途：持仓 ${posCount} 笔 · 挂单 ${workCount} 笔</span>`
+            }
+          </div>
+        </div>
+
+        ${posCount > 0 ? `
+          <div class="section-title-row" style="margin: 8px 0 4px;">
+            <div class="section-title">当前持仓</div>
+            <span class="section-badge">${posCount} 活跃</span>
+          </div>
+          <table><tr><th>代码</th><th>数量</th><th>成本</th><th>标记</th><th>止损</th><th>止盈</th></tr>${posRows}</table>
+        ` : ''}
+
+        ${workCount > 0 ? `
+          <div class="section-title-row" style="margin: 8px 0 4px;">
+            <div class="section-title">未成交挂单</div>
+            <span class="section-badge">${workCount} 挂单中</span>
+          </div>
+          <table><tr><th>代码</th><th>数量</th><th>限价</th></tr>${workRows}</table>
+        ` : ''}
+
+        <div class="section-title-row" style="margin: 10px 0 4px;">
+          <div class="section-title" style="display:flex; align-items:center; gap:6px;">
+            <span>候选标的池</span>
+            <span style="color:var(--gold); font-size:13px; font-weight:700;">(${filtered.length})</span>
+            <span style="font-size:11px; color:var(--text-muted); font-weight:normal;">11 ETF + 20 个股</span>
+          </div>
+          <span class="section-badge" style="color:var(--mint); background:var(--mint-dim);">100% 触发模拟成交</span>
+        </div>
+
+        <div class="filter-toolbar">
+          <input type="text" class="search-box" placeholder="🔍 搜索代码或行业 (如 NVDA, XLE)..." value="${searchQuery}" oninput="searchQuery = this.value; paint(last);" />
+          <div class="filter-chips">
+            <span class="filter-chip ${filterType==='ALL'?'active':''}" onclick="filterType='ALL'; paint(last);">全部</span>
+            <span class="filter-chip ${filterType==='ETF'?'active':''}" onclick="filterType='ETF'; paint(last);">行业 ETF</span>
+            <span class="filter-chip ${filterType==='STOCK'?'active':''}" onclick="filterType='STOCK'; paint(last);">个股</span>
+            <span class="filter-chip ${filterType==='READY'?'active':''}" onclick="filterType='READY'; paint(last);">100% 信号</span>
+            <span class="filter-chip ${filterType==='WATCHLIST'?'active':''}" onclick="filterType='WATCHLIST'; paint(last);">⭐ 关注</span>
+            <span class="filter-chip sort-chip" onclick="toggleSort(); paint(last);">排序: ${sortOrder==='PROGRESS'?'达成度↓':(sortOrder==='PRICE'?'价格↓':'代码A-Z')}</span>
+          </div>
+        </div>
+
+        <div class="candidate-list">
+          ${nameCards || "<div class='empty-card'>未找到符合条件的候选标的</div>"}
+        </div>
+      `;
+    }
+
+    function toggleSort() {
+      if (sortOrder === "PROGRESS") sortOrder = "PRICE";
+      else if (sortOrder === "PRICE") sortOrder = "SYMBOL";
+      else sortOrder = "PROGRESS";
+    }
+
+    function paint(state) {
+      if (!state) return;
+      last = state;
+      document.getElementById("links").innerHTML =
+        `<span>币安：${state.feed || "未连接"}</span><span style="font-size:11px; color:var(--gold);">日历：${state.calendar || "—"}</span>`;
+
+      for (const button of tabs.querySelectorAll("button")) {
+        if (button.dataset.strategy === current) button.setAttribute("aria-current", "page");
+        else button.removeAttribute("aria-current");
+      }
+
+      const panel = document.getElementById("panel");
+      if (current === "状态") {
+        panel.innerHTML = renderStatus(state);
+      } else {
+        const desk = (state.desks || []).find(item => item.strategy === current);
+        panel.innerHTML = renderDesk(desk, state);
+      }
+    }
+
+    function notice(alerts) {
+      const match = (alerts || []).filter(item =>
+        item.kind === "FILLED" || item.kind === "WORKING" || item.kind === "SIGNAL"
+      );
+      if (!match.length) return;
+      const first = match[0];
+      const extra = match.length > 1 ? `，另有 ${match.length - 1} 条` : "";
+      if (first.kind === "SIGNAL") {
+        document.getElementById("toast-title").textContent = `🎯 ${first.strategy} 信号达成 100%`;
+        document.getElementById("toast-body").textContent = `${first.symbol} 现价 $${first.price}${extra}`;
+      } else {
+        document.getElementById("toast-title").textContent = `${first.strategy} ${first.text || (first.kind === "FILLED" ? "模拟成交" : "模拟挂单")}`;
+        document.getElementById("toast-body").textContent = `${first.side} ${first.symbol} ${first.qty} @ $${first.price}${extra}`;
+      }
+      toast.hidden = false;
+    }
+
+    async function tick() {
+      const start = Date.now();
+      try {
+        const response = await fetch("/api/state", { cache: "no-store" });
+        const latency = Date.now() - start;
+        document.getElementById("ping-badge").textContent = `⚡ ${latency}ms`;
+        document.getElementById("live-dot").style.background = "var(--mint)";
+        if (!response.ok) return;
+        const state = await response.json();
+        const fresh = [];
+        for (const alert of (state.alerts || [])) {
+          if (!seen.has(alert.id)) {
+            seen.add(alert.id);
+            if (primed) fresh.push(alert);
+          }
+        }
+        primed = true;
+        paint(state);
+        notice(fresh);
+      } catch (err) {
+        document.getElementById("ping-badge").textContent = `❌ 断开`;
+        document.getElementById("live-dot").style.background = "var(--coral)";
+      }
+    }
+
+    tick();
+    setInterval(tick, 1000);
+  </script>
+</body>
+</html>

@@ -5,7 +5,13 @@ alwaysApply: true
 
 # V2.2 项目宪法（U1–U8）
 
-本地根目录 `D:\Strategy`。日本服务器 `43.163.203.127`（Ubuntu 26.04.1 LTS，用户 `ubuntu`，sudo 免密）。研发目录：本地 `D:\Strategy\binance_stocks_v2_2`，服务器 `/home/ubuntu/binance_stocks_v2_2`。历史库落在 `D:\Strategy\data_v2_2\`。阶段 0–14 禁止真实下单。每次只完成当前阶段，输出验收报告后停止，等待投资人批准。禁止把密码或 API Key 写入代码、Git 或临时脚本；SSH 只用免密密钥。
+本地根目录 `D:\Strategy`。日本服务器 `43.163.203.127`（Ubuntu 26.04.1 LTS，用户 `ubuntu`，sudo 免密）。研发目录：本地 `D:\Strategy\binance_stocks_v2_2`，服务器 `/home/ubuntu/binance_stocks_v2_2`。历史库落在 `D:\Strategy\data_v2_2\`。阶段 0–14 禁止真实下单。禁止把密码或 API Key 写入代码、Git 或临时脚本；SSH 只用免密密钥。
+
+## 运行模式（2026-11-03 起）
+
+S1、S2、S3、S4、S5 的模拟路由全部解封。模拟盘直接跟随币安实盘行情记账、持仓和平仓，不再用历史回测驱动开仓，也不再把 Lockbox 回测当作模拟盘的开工条件。真实下单继续关闭：`live_trade_enabled` 保持 `False`，S4 与 S5 的实盘锁保持关闭。阶段 15 的真实下单仍须另有投资人书面授权。
+
+每个交易日的大盘 K 线按三段写入 `D:\Strategy\K-Line-DataBase\日期\时段\`：盘前 04:00–09:30 ET，盘中 09:30–16:00 ET（半日市到提前收盘），盘后从收盘到 20:00 ET。该库只供以后的策略研究与优化。禁止把这些文件重放进 `_decide` 或 `submit_entry`。交易资格接口暂时读不到时，模拟盘仍可记账；真实订单仍须资格检查。
 
 ## (1) 市场与接口边界
 
@@ -45,10 +51,10 @@ alwaysApply: true
 
 ## (10) V2.2-U8 可复现数学与防伪发现
 
-回测强制 `Low <= L - delta` 穿透成交。同一根 K 线同时触及止盈和止损时，下钻 1 分钟复核，仍冲突则按悲观止损计。必须通过四阶消融、Deflated Sharpe Ratio (DSR) 和核心超参 ±15% 邻域平稳性检验。阶段 0–14 禁止干扰现有生产系统，禁止真实下单。金额、价格、份额用 `decimal.Decimal`，禁止用 `float`。
+回测强制 `Low <= L - delta` 穿透成交。同一根 K 线同时触及止盈和止损时，下钻 1 分钟复核，仍冲突则按悲观止损计。以后若重开研究，仍须通过四阶消融、Deflated Sharpe Ratio (DSR) 和核心超参 ±15% 邻域平稳性检验。自 2026-11-03 起，这些检验不再挡住模拟盘。阶段 0–14 禁止真实下单。金额、价格、份额用 `decimal.Decimal`，禁止用 `float`。
 
 ## 执行红线
 
 - 外部配置不能绕过 `ConstitutionGuard`。
 - `live_trade_enabled` 默认 `False`。S4 双重锁定 `live_enabled = False`。
-- 阶段 15 实盘必须另有投资人书面授权。Lockbox（`2026-05-01` 至 `2026-10-30`）在参数冻结后只允许跑一次。
+- 阶段 15 实盘必须另有投资人书面授权。Lockbox（`2026-05-01` 至 `2026-10-30`）不再驱动模拟盘。

@@ -19,6 +19,17 @@ __pycache__/
 
 # Research stores stay outside the code snapshot
 data_v2_2/
+K-Line-DataBase/
 *.sqlite
 .coverage
 desktop.ini
+
+# Install packages and machine-local build output
+release/*.apk
+local.properties
+**/.gradle/
+**/.kotlin/
+**/build/
+**/bin/
+**/obj/
+*.apk

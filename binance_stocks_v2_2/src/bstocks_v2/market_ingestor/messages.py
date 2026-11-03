@@ -33,6 +33,7 @@ class ParsedEvent:
     ask: Decimal | None
     raw_state: str | None
     phases: tuple[tuple[str, str], ...] = ()
+    marks: tuple[tuple[str, Decimal, int | None], ...] = ()
 
 
 def parse_ws_message(raw: str) -> ParsedEvent:
@@ -72,6 +73,7 @@ def _event(data: dict[str, object], stream: str | None, outer_event_ms: int | No
             event_time_ms=event_time,
             market_phase=phase_text,
             phases=phases,
+            marks=_price_marks(data.get("rates")),
         )
     if kind in {"calendar", "tradability", "tradingStatus"}:
         state = data.get("tradability") or data.get("tradingStatus") or data.get("status")
@@ -184,6 +186,7 @@ def _blank(
     market_phase: str | None = None,
     raw_state: str | None = None,
     phases: tuple[tuple[str, str], ...] = (),
+    marks: tuple[tuple[str, Decimal, int | None], ...] = (),
 ) -> ParsedEvent:
     return ParsedEvent(
         kind=kind,
@@ -207,7 +210,31 @@ def _blank(
         ask=None,
         raw_state=raw_state,
         phases=phases,
+        marks=marks,
     )
+
+
+def _price_marks(rates: object) -> tuple[tuple[str, Decimal, int | None], ...]:
+    """Last trade on the official all-market price stream. Quiet names are absent."""
+
+    if not isinstance(rates, list):
+        return ()
+    marks: list[tuple[str, Decimal, int | None]] = []
+    for item in rates:
+        if not isinstance(item, dict):
+            continue
+        symbol = item.get("s")
+        raw = item.get("p")
+        if not isinstance(symbol, str) or raw is None:
+            continue
+        try:
+            price = parse_decimal(raw)
+        except (TypeError, ValueError, ArithmeticError):
+            continue
+        if price <= 0:
+            continue
+        marks.append((symbol.removeprefix("EQ_").upper(), price, _optional_int(item.get("t"))))
+    return tuple(marks)
 
 
 def _price_phases(rates: object) -> tuple[tuple[str, str], ...]:

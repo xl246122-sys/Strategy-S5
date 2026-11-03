@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Red Candlestick Wick (Google Red #EA4335) -->
+    <path
+        android:strokeColor="#EA4335"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M35,46 L35,80" />
+    <!-- Red Candlestick Body -->
+    <path
+        android:fillColor="#EA4335"
+        android:pathData="M31,54 L39,54 A2,2 0 0,1 41,56 L41,74 A2,2 0 0,1 39,76 L31,76 A2,2 0 0,1 29,74 L29,56 A2,2 0 0,1 31,54 Z" />
+
+    <!-- Yellow Candlestick Wick (Google Yellow #FBBC04) -->
+    <path
+        android:strokeColor="#FBBC04"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M51,36 L51,74" />
+    <!-- Yellow Candlestick Body -->
+    <path
+        android:fillColor="#FBBC04"
+        android:pathData="M47,44 L55,44 A2,2 0 0,1 57,46 L57,68 A2,2 0 0,1 55,70 L47,70 A2,2 0 0,1 45,68 L45,46 A2,2 0 0,1 47,44 Z" />
+
+    <!-- Green Candlestick Wick (Google Green #34A853) -->
+    <path
+        android:strokeColor="#34A853"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M67,24 L67,64" />
+    <!-- Green Candlestick Body -->
+    <path
+        android:fillColor="#34A853"
+        android:pathData="M63,30 L71,30 A2,2 0 0,1 73,32 L73,58 A2,2 0 0,1 71,60 L63,60 A2,2 0 0,1 61,58 L61,32 A2,2 0 0,1 63,30 Z" />
+
+    <!-- Google Blue Ascending Trajectory Vector Wave (#4285F4) -->
+    <path
+        android:strokeColor="#4285F4"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M24,72 C34,72 42,56 52,48 C62,40 68,28 78,22" />
+
+    <!-- Upward Trend Indicator Arrow / Apex Glow Dot -->
+    <path
+        android:fillColor="#4285F4"
+        android:pathData="M78,22 A4.5,4.5 0 1,0 78,22.01 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M78,22 A2,2 0 1,0 78,22.01 Z" />
+
+</vector>
