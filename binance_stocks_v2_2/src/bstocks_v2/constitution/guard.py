@@ -26,6 +26,7 @@ _IMMUTABLE: dict[str, object] = {
     "live_trade_enabled": False,
     "live_enabled": False,
     "s4_live_enabled": False,
+    "s5_live_enabled": False,
     "max_open_positions": MAX_OPEN_POSITIONS,
     "hwm_drawdown": Decimal("0.08"),
     "min_viable_notional_usdc": MIN_VIABLE_NOTIONAL,

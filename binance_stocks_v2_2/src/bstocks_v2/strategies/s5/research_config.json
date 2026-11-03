@@ -1,0 +1,7 @@
+{
+  "strategy_id": "S5_EOD_REVERSAL",
+  "mode": "RESEARCH_ONLY",
+  "live_trade_enabled": false,
+  "live_enabled": false,
+  "s5_live_enabled": false
+}

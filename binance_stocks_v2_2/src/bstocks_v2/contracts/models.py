@@ -98,6 +98,14 @@ class TradeIntent(BaseModel):
     rejection_reasons: list[str] = Field(default_factory=list)
     data_feed: str
     data_freshness_ms: int = Field(ge=0)
+    session: str = ""
+    capture_ts: datetime | None = None
+    exchange_ts: datetime | None = None
+    feed: str = ""
+    quote_freshness_ms: int | None = None
+    session_eligibility_snapshot_hash: str = ""
+    research_arm: str = ""
+    news_event_state: str = "UNKNOWN"
 
     @model_validator(mode="after")
     def _check_long_geometry(self) -> "TradeIntent":
@@ -110,6 +118,8 @@ class TradeIntent(BaseModel):
             raise ValueError("stop_price < entry_price_ceiling < take_profit_price")
         if self.min_viable_notional_usdc < MIN_VIABLE_NOTIONAL:
             raise ValueError("min_viable_notional_usdc cannot be set below 120")
+        if self.quote_freshness_ms is not None and self.quote_freshness_ms < 0:
+            raise ValueError("quote_freshness_ms cannot be negative")
         return self
 
 
