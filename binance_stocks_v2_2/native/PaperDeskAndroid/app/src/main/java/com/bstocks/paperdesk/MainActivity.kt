@@ -358,7 +358,7 @@ private fun TopAppBar(
                                 .border(1.dp, Theme.Gold.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
                                 .padding(horizontal = 5.dp, vertical = 1.dp)
                         ) {
-                            Text("v1.26", color = Theme.Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Text("v1.27", color = Theme.Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                     Text(

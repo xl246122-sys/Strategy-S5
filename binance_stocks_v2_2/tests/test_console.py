@@ -143,7 +143,7 @@ def test_five_desks_do_not_share_accounts_and_s5_does_not_route() -> None:
     smh = s5.row("SMH")
     assert smh["progress"] == 0
     assert smh["price"] == "100.40"
-    assert all(desk.paper.cash == Decimal("1600") for desk in hub.desks)
+    assert all(desk.paper.cash == Decimal("4000") for desk in hub.desks)
     s5.close()
     hub.close()
 

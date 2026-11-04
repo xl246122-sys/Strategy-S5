@@ -57,8 +57,19 @@ class _State:
 class PullbackBook:
     """Per-symbol session buffer. VWAP slope and RSI come from the causal feature book."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        lookback: int = LOOKBACK,
+        base_bars: int = BASE_BARS,
+        cooldown_bars: int = COOLDOWN_BARS,
+    ) -> None:
+        if lookback < 1 or base_bars < 1 or cooldown_bars < 1:
+            raise ValueError("pullback length")
         self._states: dict[str, _State] = {}
+        self._lookback = lookback
+        self._base = base_bars
+        self._cooldown = cooldown_bars
 
     def observe(self, bar: FeatureBar, snap: SymbolSnapshot) -> tuple[Pattern | None, str]:
         if bar.symbol != snap.symbol or bar.end != snap.data_asof_utc:
@@ -90,7 +101,7 @@ class PullbackBook:
                 slope=snap.vwap_slope,
             )
         )
-        return _judge(state, snap.rel_vol)
+        return _judge(state, snap.rel_vol, self._lookback, self._base, self._cooldown)
 
     def commit(self, symbol: str) -> None:
         state = self._states[symbol]
@@ -111,9 +122,15 @@ def pattern_features(pattern: Pattern) -> tuple[Decimal, Decimal, Decimal, Decim
     )
 
 
-def _judge(state: _State, rel_vol: Decimal | None) -> tuple[Pattern | None, str]:
+def _judge(
+    state: _State,
+    rel_vol: Decimal | None,
+    lookback: int = LOOKBACK,
+    base_bars: int = BASE_BARS,
+    cooldown_bars: int = COOLDOWN_BARS,
+) -> tuple[Pattern | None, str]:
     index = len(state.prints) - 1
-    if index < LOOKBACK + BASE_BARS:
+    if index < lookback + base_bars:
         return None, "WARMUP"
     current = state.prints[index]
     previous = state.prints[index - 1]
@@ -126,20 +143,20 @@ def _judge(state: _State, rel_vol: Decimal | None) -> tuple[Pattern | None, str]
         return None, "EXTENDED"
     if previous.rsi > RSI_RECLAIM or current.rsi <= RSI_RECLAIM:
         return None, "NO_CROSS"
-    window_start = index - LOOKBACK
+    window_start = index - lookback
     dip = _latest_dip(state.prints, window_start, index)
     if dip is None:
         return None, "NO_DIP"
-    if dip < BASE_BARS:
+    if dip < base_bars:
         return None, "WARMUP"
-    base = state.prints[dip - BASE_BARS : dip]
+    base = state.prints[dip - base_bars : dip]
     pull = state.prints[dip:index]
     span = state.prints[dip : index + 1]
     if not _contracted(base, pull):
         return None, "VOLUME"
     if not _held_structure(base, span):
         return None, "STRUCTURE"
-    if state.committed is not None and index - state.committed < COOLDOWN_BARS:
+    if state.committed is not None and index - state.committed < cooldown_bars:
         return None, "COOLDOWN"
     bracket = _bracket(current.close, current.atr)
     if bracket is None:

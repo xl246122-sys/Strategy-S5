@@ -9,10 +9,13 @@ from pathlib import Path
 
 from bstocks_v2.console.archive import SessionArchive
 from bstocks_v2.console.calendar import LiveCalendar
-from bstocks_v2.console.desks import TITLES, Desk
+from bstocks_v2.console.desks import TITLES, Desk, _feature
 from bstocks_v2.console.pool import SYMBOLS as POOL
+from bstocks_v2.console.swing import SwingBook
 from bstocks_v2.feature_store.bars import FeatureBar
 from bstocks_v2.market_ingestor.messages import ParsedEvent
+from bstocks_v2.research_data.calendar import NEW_YORK
+from bstocks_v2.tf30.board import Board
 
 STRATEGIES = ("S1", "S2", "S3", "S4", "S5")
 
@@ -22,6 +25,10 @@ class Hub:
         self.calendar = LiveCalendar()
         self.archive = archive
         self.desks = [Desk(strategy, root, self.calendar, archive) for strategy in STRATEGIES]
+        papers = {desk.strategy_id: desk.paper for desk in self.desks}
+        self.m30 = Board(papers, self.calendar, archive)
+        self.swing = SwingBook(self.calendar)
+        self.warm_status = ""
         self.alerts: list[dict[str, str]] = []
         self.quotes: dict[str, dict[str, str]] = {}
         self.feed_status = "未连接"
@@ -39,6 +46,7 @@ class Hub:
     def close(self) -> None:
         for desk in self.desks:
             desk.close()
+        self.m30.close()
 
     def set_feed(self, status: str) -> None:
         with self._lock:
@@ -58,6 +66,7 @@ class Hub:
                 self._archive_trade(symbol, (bid + ask) / 2, when)
                 for desk in self.desks:
                     desk.on_quote(symbol, bid, ask, when)
+                self.m30.on_mark(symbol, (bid + ask) / 2)
                 self.quotes[symbol] = {"bid": format(bid, "f"), "ask": format(ask, "f")}
                 applied += 1
             for desk in self.desks:
@@ -83,6 +92,8 @@ class Hub:
             for desk in self.desks:
                 for symbol, state in rows.items():
                     desk.on_tradable(symbol, state)
+            for symbol, state in rows.items():
+                self.m30.on_tradable(symbol, state)
 
     def accept(self, event: ParsedEvent) -> None:
         with self._lock:
@@ -93,12 +104,14 @@ class Hub:
                 symbol = event.symbol.upper()
                 for desk in self.desks:
                     desk.on_tradable(symbol, event.raw_state)
+                self.m30.on_tradable(symbol, event.raw_state)
             elif event.kind == "price":
                 for symbol, price, time_ms in event.marks:
                     when = _stamp(time_ms)
                     self._archive_trade(symbol, price, when)
                     for desk in self.desks:
                         desk.on_print(symbol, price, when)
+                    self.m30.on_mark(symbol, price)
             elif event.kind == "kline" and event.symbol and event.close is not None:
                 symbol = event.symbol.upper()
                 when = _stamp(event.event_time_ms)
@@ -108,6 +121,10 @@ class Hub:
                 if event.closed is True:
                     for desk in self.desks:
                         alerts.extend(desk.on_kline(event))
+                    bar = _feature(event)
+                    if bar is not None:
+                        alerts.extend(self.m30.on_five(bar))
+                        alerts.extend(self._swing_bar(bar))
             self._take(alerts)
 
     def _quote(self, event: ParsedEvent) -> None:
@@ -120,6 +137,7 @@ class Hub:
         when = _stamp(event.event_time_ms)
         for desk in self.desks:
             desk.on_quote(name, bid, ask, when)
+        self.m30.on_mark(name, (bid + ask) / 2)
         self._archive_trade(name, (bid + ask) / 2, when)
         self.quotes[name] = {"bid": format(bid, "f"), "ask": format(ask, "f")}
 
@@ -132,7 +150,14 @@ class Hub:
                 alerts: list[dict[str, str]] = []
                 for desk in self.desks:
                     alerts.extend(desk.replay_group(grouped[start]))
+                alerts.extend(self.m30.on_group(grouped[start]))
+                for bar in grouped[start]:
+                    alerts.extend(self._swing_bar(bar))
                 self._take(alerts)
+
+    def _swing_bar(self, bar: FeatureBar) -> list[dict[str, str]]:
+        self.swing.observe(bar, arm=True)
+        return _swing_entry(self, bar)
 
     def state(self) -> dict[str, object]:
         with self._lock:
@@ -155,7 +180,11 @@ class Hub:
                 "quotes": self.quotes,
                 "alerts": list(self.alerts),
                 "desks": [desk.view() for desk in self.desks],
+                "m30": self.m30.views(),
                 "titles": TITLES,
+                "capital_usdc": "4000",
+                "session": "盘前 04:00–盘后 20:00 ET，夜盘与休市停止",
+                "warm": self.warm_status,
             }
 
     def _archive_trade(self, symbol: str, price: Decimal, when: datetime) -> None:
@@ -194,6 +223,32 @@ class Hub:
             self.alerts.append(alert)
         if len(self.alerts) > 100:
             self.alerts = self.alerts[-100:]
+
+
+def _swing_entry(hub: Hub, bar: FeatureBar) -> list[dict[str, str]]:
+    day = bar.start.astimezone(NEW_YORK).date()
+    half = hub.calendar.is_half_day(day)
+    sessions = sorted(set(hub.calendar.closes()) | set(hub.calendar._extra))
+    alerts: list[dict[str, str]] = []
+    desks = {desk.strategy_id: desk for desk in hub.desks}
+    for order in hub.swing.due(bar.symbol, day):
+        desk = desks.get(order.strategy)
+        if desk is None:
+            continue
+        alert = desk.paper.submit_entry(
+            symbol=order.symbol,
+            limit=order.limit,
+            stop=order.stop,
+            take_profit=order.take_profit,
+            now_et=bar.end,
+            is_half_day=half,
+            session_days=sessions,
+            horizon="swing",
+            ttl=timedelta(minutes=30),
+        )
+        if alert is not None:
+            alerts.append(alert)
+    return alerts
 
 
 def _feed_line(feed: str, scan: str) -> str:

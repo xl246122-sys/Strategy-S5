@@ -423,7 +423,7 @@ def _regime(regime: Regime, *, enabled: bool) -> FeatureSnapshot:
         entries_allowed=enabled,
         s1_enabled=enabled,
         s2_enabled=enabled,
-        s3_enabled=False,
+        s3_enabled=regime in {Regime.TREND_UP, Regime.SIDEWAYS},
         s4_research_enabled=False,
         in_opening_window=False,
         data_ready=True,

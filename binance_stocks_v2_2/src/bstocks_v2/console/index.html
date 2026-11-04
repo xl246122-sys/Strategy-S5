@@ -585,11 +585,13 @@
       { id: "S3", code: "S3", name: "开盘突破" },
       { id: "S4", code: "S4", name: "均值反弹" },
       { id: "S5", code: "S5", name: "极端反转" },
+      { id: "30分", code: "30分", name: "五策略" },
       { id: "状态", code: "状态", name: "系统监控" }
     ];
 
-    const order = ["S1", "S2", "S3", "S4", "S5", "状态"];
+    const order = ["S1", "S2", "S3", "S4", "S5", "30分", "状态"];
     let current = "S1";
+    let m30Pick = "S1";
     const seen = new Set();
     let primed = false;
     let last = null;
@@ -757,6 +759,9 @@
             <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted)">实盘安全锁</span><span style="color:var(--mint)">🔒 物理关闭 (live_trade_enabled=False)</span></div>
             <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted)">Alpaca 回补</span><span>${state.alpaca || "未启动"}</span></div>
             <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted)">交易日历</span><span>${state.calendar || "—"}</span></div>
+            <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted)">单策略资金</span><span>${state.capital_usdc || "4000"} USDC</span></div>
+            <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted)">运行时段</span><span>${state.session || "盘前至盘后"}</span></div>
+            <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted)">历史预热</span><span>${state.warm || "—"}</span></div>
           </div>
         </div>
 
@@ -772,7 +777,39 @@
           <span class="section-badge">5 大策略</span>
         </div>
         ${desksHtml || "<div class='empty-card'>暂无策略数据</div>"}
+        <div class="section-title-row">
+          <div class="section-title">30分钟账本</div>
+          <span class="section-badge">由5分钟合成</span>
+        </div>
+        ${(state.m30 || []).map(desk => `
+          <div class="candidate-card" onclick="openM30('${desk.strategy}')" style="margin-bottom:8px;">
+            <div>
+              <span class="strat-badge" style="font-size:11px;">${desk.strategy}</span>
+              <span style="font-weight:700;">${desk.title || ""}</span>
+            </div>
+            <div style="font-size:12px; color:var(--text-muted); margin-top:4px;">
+              ${desk.runtime || ""} · ${desk.reason || ""} · 持仓 ${(desk.positions||[]).length}
+            </div>
+          </div>
+        `).join("") || "<div class='empty-card'>30分钟账本尚未就绪</div>"}
       `;
+    }
+
+    function openM30(strat) {
+      m30Pick = strat;
+      current = "30分";
+      paint(last);
+    }
+
+    function renderM30(state) {
+      const desks = state.m30 || [];
+      if (!desks.length) return "<div class='empty-card'>30分钟账本尚未就绪</div>";
+      const buttons = desks.map(item => {
+        const on = item.strategy === m30Pick;
+        return `<button type="button" onclick="openM30('${item.strategy}')" style="margin:0 6px 10px 0; padding:6px 10px; border-radius:8px; border:1px solid ${on ? "var(--gold)" : "var(--border)"}; background:${on ? "var(--gold-dim)" : "var(--card)"}; color:var(--text); cursor:pointer;">${item.strategy}</button>`;
+      }).join("");
+      const desk = desks.find(item => item.strategy === m30Pick) || desks[0];
+      return `<div class="section-title">30分钟 · 已收盘5分钟K线合成，与5分钟账本分开</div><div>${buttons}</div>` + renderDesk(desk, state);
     }
 
     function selectStrategy(strat) {
@@ -783,6 +820,8 @@
     function renderDesk(desk, state) {
       if (!desk) return "<div class='empty-card'>未找到对应策略</div>";
       const meta = StrategyMeta[desk.strategy] || ["量化策略", "核心模型"];
+      const heading = desk.frame === "30m" ? `${meta[0]} · 30分钟` : meta[0];
+      const detail = desk.frame === "30m" ? "RSI、ATR 和预热按30分钟重计" : meta[1];
       const halted = desk.halt;
 
       let rawNames = desk.names || [];
@@ -863,8 +902,8 @@
         <div class="strategy-cockpit">
           <div class="cockpit-top">
             <div>
-              <div class="cockpit-title">${meta[0]}</div>
-              <div class="cockpit-sub">${meta[1]}</div>
+              <div class="cockpit-title">${heading}</div>
+              <div class="cockpit-sub">${detail}</div>
             </div>
             <div style="display:flex; align-items:center; gap:6px;">
               ${desk.reason ? `<span class="cockpit-regime">${desk.reason}</span>` : ""}
@@ -873,8 +912,8 @@
           </div>
           
           <div class="cockpit-metrics">
-            <div class="cp-metric"><span class="cp-label">权益 USDC</span><b class="cp-val gold">$${desk.equity || "1,600"}</b></div>
-            <div class="cp-metric"><span class="cp-label">现金 USDC</span><b class="cp-val sky">$${desk.cash || "1,600"}</b></div>
+            <div class="cp-metric"><span class="cp-label">权益 USDC</span><b class="cp-val gold">$${desk.equity || "4,000"}</b></div>
+            <div class="cp-metric"><span class="cp-label">现金 USDC</span><b class="cp-val sky">$${desk.cash || "4,000"}</b></div>
             <div class="cp-metric"><span class="cp-label">持仓标的</span><b class="cp-val ${posCount > 0 ? 'mint' : ''}">${posCount} 支</b></div>
             <div class="cp-metric"><span class="cp-label">开仓门禁</span><b class="cp-val ${halted ? 'coral' : 'mint'}">${halted ? '停开保护' : '正常评估'}</b></div>
           </div>
@@ -950,6 +989,8 @@
       const panel = document.getElementById("panel");
       if (current === "状态") {
         panel.innerHTML = renderStatus(state);
+      } else if (current === "30分") {
+        panel.innerHTML = renderM30(state);
       } else {
         const desk = (state.desks || []).find(item => item.strategy === current);
         panel.innerHTML = renderDesk(desk, state);

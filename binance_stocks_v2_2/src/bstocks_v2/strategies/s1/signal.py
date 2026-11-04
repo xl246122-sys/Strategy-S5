@@ -38,6 +38,7 @@ def decide(
     stock: SymbolSnapshot,
     regime: FeatureSnapshot,
     research_eligible: bool,
+    min_updates: int = MIN_UPDATES,
 ) -> tuple[TradeIntent | None, str]:
     if symbol not in SECTOR_PARENT:
         return None, "NOT_IN_S1_UNIVERSE"
@@ -56,13 +57,13 @@ def decide(
         return None, "BELOW_VWAP"
     if stock.close - stock.vwap > atr * VWAP_EXTENSION_ATR:
         return None, "EXTENDED"
-    if fit.updates < MIN_UPDATES:
+    if fit.updates < min_updates:
         return None, "WARMUP"
     if not fit.solved or fit.variance_alpha is None or fit.variance_alpha <= 0:
         return None, "VARIANCE"
     if fit.alpha <= 0:
         return None, "ALPHA"
-    z_alpha = fit.z_alpha
+    z_alpha = fit.z_after(min_updates)
     if z_alpha is None or z_alpha <= Z_MIN:
         return None, "Z"
     if sector_strength is None:

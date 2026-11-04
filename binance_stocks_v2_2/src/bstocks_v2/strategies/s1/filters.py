@@ -64,8 +64,11 @@ class Fit:
 
     @property
     def z_alpha(self) -> Decimal | None:
+        return self.z_after(MIN_UPDATES)
+
+    def z_after(self, min_updates: int) -> Decimal | None:
         variance = self.variance_alpha
-        if not self.solved or variance is None or variance <= 0 or self.updates < MIN_UPDATES:
+        if not self.solved or variance is None or variance <= 0 or self.updates < min_updates:
             return None
         return self.alpha / variance.sqrt()
 

@@ -116,9 +116,9 @@ def test_a_15_minute_break_can_still_be_the_0955_bar() -> None:
     assert opening[5].reason == "FIRST_BREAK"
 
 
-def test_thirty_minute_break_falls_outside_the_s3_gate() -> None:
+def test_thirty_minute_break_stays_eligible_after_1000() -> None:
     chosen = route(Regime.SIDEWAYS, False)
-    assert chosen.s3_enabled is False
+    assert chosen.s3_enabled is True
     book = OpeningRangeBook()
     for slot in range(6):
         view = book.observe(_bar(slot, Decimal("10"), Decimal("9"), Decimal("10")))
@@ -133,7 +133,7 @@ def test_thirty_minute_break_falls_outside_the_s3_gate() -> None:
         half_day=False,
         opening=nxt,
     )
-    assert candidate is None and why == "S3_DISABLED"
+    assert candidate is not None and why == "SIGNAL"
 
 
 def test_gap_and_rewind_do_not_publish_a_range() -> None:

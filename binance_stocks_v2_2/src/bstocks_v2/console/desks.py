@@ -19,6 +19,7 @@ from bstocks_v2.console.board import (
 )
 from bstocks_v2.console.book import PaperBook
 from bstocks_v2.console.calendar import LiveCalendar
+from bstocks_v2.console.capital import DESK_EQUITY
 from bstocks_v2.console.factors import ConsoleFactors
 from bstocks_v2.console.gates import opening_prices, ready_reason
 from bstocks_v2.console.paper_s5 import s5_paper_plan
@@ -73,7 +74,7 @@ class Desk:
         self.calendar = calendar
         self.archive = archive
         path = None if root is None else root / f"{strategy_id}.sqlite"
-        self.paper = PaperBook(strategy_id, path)
+        self.paper = PaperBook(strategy_id, path, opening_cash=DESK_EQUITY, desk_clock=True)
         self.features = CausalFeatureBook(calendar)
         self.regime_model = MarketRegimeClassifier()
         self.tradable: set[str] = set()
@@ -671,6 +672,7 @@ def _s1_pool_reason(
     snap: SymbolSnapshot,
     regime: FeatureSnapshot,
     strength: Decimal | None,
+    min_updates: int = MIN_UPDATES,
 ) -> str:
     if regime.data_asof_utc != snap.data_asof_utc:
         return "REGIME_ASOF"
@@ -685,13 +687,13 @@ def _s1_pool_reason(
         return "BELOW_VWAP"
     if snap.close - snap.vwap > atr * VWAP_EXTENSION_ATR:
         return "EXTENDED"
-    if fit.updates < MIN_UPDATES:
+    if fit.updates < min_updates:
         return "WARMUP"
     if not fit.solved or fit.variance_alpha is None or fit.variance_alpha <= 0:
         return "VARIANCE"
     if fit.alpha <= 0:
         return "ALPHA"
-    z_alpha = fit.z_alpha
+    z_alpha = fit.z_after(min_updates)
     if z_alpha is None or z_alpha <= Z_MIN:
         return "Z"
     if strength is None:

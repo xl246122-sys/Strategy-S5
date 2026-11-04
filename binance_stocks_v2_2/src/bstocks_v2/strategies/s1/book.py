@@ -9,9 +9,11 @@ from bstocks_v2.strategies.s1.spec import PARENTS, RS_BARS
 class FactorBoard:
     """Orthogonalize each sector once per bar, then reuse that residual."""
 
-    def __init__(self) -> None:
+    def __init__(self, rs_bars: int = RS_BARS) -> None:
+        if rs_bars < 1:
+            raise ValueError("rs bars")
         self._slopes = {sector: ThroughOrigin() for sector in PARENTS}
-        self._strength = {sector: Strength(RS_BARS) for sector in PARENTS}
+        self._strength = {sector: Strength(rs_bars) for sector in PARENTS}
 
     def update(
         self,

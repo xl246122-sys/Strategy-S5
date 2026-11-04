@@ -1,7 +1,7 @@
 """Hardcoded trading rules. A config file cannot turn these off."""
 
 import re
-from datetime import datetime
+from datetime import datetime, time
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
@@ -23,7 +23,10 @@ HWM_RETAINED = Decimal("0.92")
 MAX_FRICTION_RATIO = Decimal("0.20")
 SESSION_POLICY_GLOBAL = "GLOBAL"
 SESSION_POLICY_S5_RESEARCH = "S5_RESEARCH"
-_SESSION_POLICIES = frozenset({SESSION_POLICY_GLOBAL, SESSION_POLICY_S5_RESEARCH})
+SESSION_POLICY_DESK = "DESK"
+_SESSION_POLICIES = frozenset(
+    {SESSION_POLICY_GLOBAL, SESSION_POLICY_S5_RESEARCH, SESSION_POLICY_DESK}
+)
 
 _IMMUTABLE: dict[str, object] = {
     "live_trade_enabled": False,
@@ -187,6 +190,8 @@ class ConstitutionGuard:
     ) -> None:
         if session_policy == SESSION_POLICY_GLOBAL and not entry_window_open(now_et, is_half_day):
             raise OrderRejected("NON_RTH")
+        if session_policy == SESSION_POLICY_DESK and not desk_entry_open(now_et, is_half_day):
+            raise OrderRejected("DESK_CLOSED")
         if open_positions + pending_buys >= MAX_OPEN_POSITIONS:
             raise OrderRejected("MAX_POSITIONS")
         if entries_halted or equity <= hwm * HWM_RETAINED:
@@ -212,6 +217,54 @@ def entry_window_open(now_et: datetime, is_half_day: bool) -> bool:
     hour, minute = (12, 45) if is_half_day else (15, 45)
     cutoff = local.replace(hour=hour, minute=minute, second=0, microsecond=0)
     return start <= local < cutoff
+
+
+def desk_entry_open(now_et: datetime, is_half_day: bool) -> bool:
+    """Premarket, regular session, and post-market. Overnight and weekends stay shut.
+
+    New regular-session orders still stop at 15:45 ET (12:45 on a half day).
+    Post-market orders stop at 19:45 ET.
+    """
+
+    if now_et.tzinfo is None:
+        raise OrderRejected("NAIVE_DATETIME")
+    local = now_et.astimezone(NEW_YORK)
+    if local.weekday() >= 5:
+        return False
+    clock = local.timetz().replace(tzinfo=None)
+    if clock < time(4, 0) or clock >= time(19, 45):
+        return False
+    cash_close = time(13, 0) if is_half_day else time(16, 0)
+    rth_cutoff = time(12, 45) if is_half_day else time(15, 45)
+    if time(9, 30) <= clock < cash_close:
+        return clock < rth_cutoff
+    return True
+
+
+def desk_order_session(now_et: datetime, is_half_day: bool) -> str:
+    """`RTH` inside the cash session, otherwise `EXTENDED`."""
+
+    local = now_et.astimezone(NEW_YORK)
+    clock = local.timetz().replace(tzinfo=None)
+    cash_close = time(13, 0) if is_half_day else time(16, 0)
+    if time(9, 30) <= clock < cash_close:
+        return "RTH"
+    return "EXTENDED"
+
+
+def desk_flatten_deadline(now_et: datetime) -> datetime:
+    """Intraday positions leave before the 20:00 ET shutdown."""
+
+    local = now_et.astimezone(NEW_YORK)
+    return local.replace(hour=19, minute=55, second=0, microsecond=0)
+
+
+def rth_cancel_deadline(now_et: datetime, is_half_day: bool) -> datetime:
+    """Working regular-session orders are pulled before the cash close."""
+
+    local = now_et.astimezone(NEW_YORK)
+    hour, minute = (12, 55) if is_half_day else (15, 55)
+    return local.replace(hour=hour, minute=minute, second=0, microsecond=0)
 
 
 def flatten_deadline(now_et: datetime, is_half_day: bool) -> datetime:

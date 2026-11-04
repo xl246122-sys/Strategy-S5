@@ -7,12 +7,17 @@ from datetime import date, datetime, timedelta
 from decimal import ROUND_DOWN, Decimal
 from pathlib import Path
 
+from bstocks_v2.console.capital import SWING_HOLD_SESSIONS
 from bstocks_v2.constitution.guard import (
     MIN_VIABLE_NOTIONAL,
+    SESSION_POLICY_DESK,
     SESSION_POLICY_GLOBAL,
     SESSION_POLICY_S5_RESEARCH,
     ConstitutionGuard,
+    desk_flatten_deadline,
+    desk_order_session,
     flatten_deadline,
+    rth_cancel_deadline,
 )
 from bstocks_v2.contracts.errors import LiveTradingDisabledError, OrderRejected
 from bstocks_v2.contracts.models import OrderDraft, OrderType, Side, TradingSession
@@ -45,6 +50,7 @@ class _Position:
     stop: Decimal
     take_profit: Decimal
     opened_on: date
+    horizon: str = "day"
 
 
 @dataclass
@@ -59,19 +65,30 @@ class _Working:
     eligible_at: datetime
     expire_at: datetime
     opened_on: date
+    session: TradingSession = TradingSession.RTH
+    horizon: str = "day"
 
 
 class PaperBook:
     """Isolated simulated CARD account. Live placement is checked and refused."""
 
-    def __init__(self, strategy_id: str, path: Path | None = None) -> None:
+    def __init__(
+        self,
+        strategy_id: str,
+        path: Path | None = None,
+        *,
+        opening_cash: Decimal | None = None,
+        desk_clock: bool = False,
+    ) -> None:
         if strategy_id not in {"S1", "S2", "S3", "S4", "S5"}:
             raise ValueError("strategy")
         self.strategy_id = strategy_id
         self.path = path
+        self.desk_clock = desk_clock
+        self.opening_cash = PLANNED_EQUITY if opening_cash is None else opening_cash
         self._guard = ConstitutionGuard()
-        self.cash = PLANNED_EQUITY
-        self.hwm = PLANNED_EQUITY
+        self.cash = self.opening_cash
+        self.hwm = self.opening_cash
         self.halt = False
         self.halt_reason = ""
         self.reason = "等待币安已收盘 K 线"
@@ -86,6 +103,7 @@ class PaperBook:
             self._conn = sqlite3.connect(str(path), check_same_thread=False)
             self._setup()
             self._load()
+            self._adopt_desk_equity()
 
     def close(self) -> None:
         if self._conn is not None:
@@ -125,6 +143,8 @@ class PaperBook:
         is_half_day: bool,
         session_days: list[date],
         research: bool = False,
+        ttl: timedelta = _TTL,
+        horizon: str = "day",
     ) -> dict[str, str] | None:
         self.live_route_closed()
         limit = self._guard.check_price(limit)
@@ -160,7 +180,7 @@ class PaperBook:
             client_order_id=client_id,
             quantity=qty,
             price=limit,
-            trading_session=TradingSession.RTH,
+            trading_session=_entry_session(self.desk_clock, now_et, is_half_day),
             quote_asset="USDC",
             wallet_type="CARD",
             tokenize=False,
@@ -170,7 +190,7 @@ class PaperBook:
             round_trip_friction_usdc=friction,
             research_only=research,
         )
-        policy = SESSION_POLICY_S5_RESEARCH if research else SESSION_POLICY_GLOBAL
+        policy = _entry_policy(self.desk_clock, research)
         try:
             self._guard.check_order(
                 draft,
@@ -198,8 +218,10 @@ class PaperBook:
             take_profit=take_profit,
             reserved=limit * qty + fee,
             eligible_at=now_et,
-            expire_at=now_et + _TTL,
+            expire_at=now_et + ttl,
             opened_on=local_day,
+            session=_entry_session(self.desk_clock, now_et, is_half_day),
+            horizon=horizon,
         )
         self.reason = "PAPER_WORKING"
         alert = self._alert("WORKING", symbol, "BUY", qty, limit, "模拟委托已记下，未发送到交易所")
@@ -216,6 +238,7 @@ class PaperBook:
         self.live_route_closed()
         self.mark(bar.symbol, bar.close)
         alerts: list[dict[str, str]] = []
+        alerts.extend(self._pull_rth(bar, is_half_day=is_half_day))
         alerts.extend(self._fill_buys(bar))
         alerts.extend(self._exits(bar, is_half_day=is_half_day, session_days=session_days))
         self._mark_hwm()
@@ -281,6 +304,7 @@ class PaperBook:
                 stop=order.stop,
                 take_profit=order.take_profit,
                 opened_on=order.opened_on,
+                horizon=order.horizon,
             )
             done.append(client_id)
             self.reason = "PAPER_FILLED"
@@ -301,9 +325,15 @@ class PaperBook:
         position = self.positions.get(bar.symbol)
         if position is None:
             return []
-        deadline = flatten_deadline(bar.end, is_half_day)
+        deadline = _flatten_at(self.desk_clock, bar.end, is_half_day)
         both = bar.low <= position.stop and bar.high >= position.take_profit
-        flatten = bar.end >= deadline
+        flatten = _should_flatten(
+            self.desk_clock,
+            position,
+            bar.end,
+            deadline,
+            session_days,
+        )
         if both or bar.low <= position.stop or flatten:
             if bar.open < position.stop:
                 raw = bar.open
@@ -354,7 +384,7 @@ class PaperBook:
             client_order_id=client_id,
             quantity=position.qty,
             price=price,
-            trading_session=TradingSession.RTH,
+            trading_session=_entry_session(self.desk_clock, now_et, is_half_day),
             quote_asset="USDC",
             wallet_type="CARD",
             tokenize=False,
@@ -362,7 +392,7 @@ class PaperBook:
             confirmed_long_qty=position.qty,
             research_only=self.strategy_id == "S5",
         )
-        policy = SESSION_POLICY_S5_RESEARCH if self.strategy_id == "S5" else SESSION_POLICY_GLOBAL
+        policy = _exit_policy(self.desk_clock, self.strategy_id)
         self._guard.check_order(
             draft,
             now_et=now_et,
@@ -442,6 +472,29 @@ class PaperBook:
         self._seq = int(row[4])
         self.day_trades = [date.fromisoformat(item) for item in str(row[5]).split(",") if item]
 
+    def _adopt_desk_equity(self) -> None:
+        if not self.desk_clock:
+            return
+        if self.cash == PLANNED_EQUITY and self.hwm == PLANNED_EQUITY:
+            self.cash = self.opening_cash
+            self.hwm = self.opening_cash
+
+    def _pull_rth(self, bar: ClosedBar, *, is_half_day: bool) -> list[dict[str, str]]:
+        if not self.desk_clock or bar.end < rth_cancel_deadline(bar.end, is_half_day):
+            return []
+        alerts: list[dict[str, str]] = []
+        for client_id, order in list(self.working.items()):
+            if order.session is not TradingSession.RTH:
+                continue
+            self.working.pop(client_id, None)
+            self.reason = "RTH_PULLED"
+            alerts.append(
+                self._alert("WORKING", order.symbol, "BUY", order.qty, order.limit, "盘中委托已撤")
+            )
+        if alerts:
+            self._save()
+        return alerts
+
     def _save(self) -> None:
         if self._conn is None:
             return
@@ -469,6 +522,53 @@ class PaperBook:
             ),
         )
         self._conn.commit()
+
+
+def _entry_session(desk_clock: bool, now_et: datetime, is_half_day: bool) -> TradingSession:
+    if not desk_clock:
+        return TradingSession.RTH
+    name = desk_order_session(now_et, is_half_day)
+    if name == "EXTENDED":
+        return TradingSession.EXTENDED
+    return TradingSession.RTH
+
+
+def _entry_policy(desk_clock: bool, research: bool) -> str:
+    if desk_clock:
+        return SESSION_POLICY_DESK
+    if research:
+        return SESSION_POLICY_S5_RESEARCH
+    return SESSION_POLICY_GLOBAL
+
+
+def _exit_policy(desk_clock: bool, strategy_id: str) -> str:
+    if desk_clock:
+        return SESSION_POLICY_DESK
+    if strategy_id == "S5":
+        return SESSION_POLICY_S5_RESEARCH
+    return SESSION_POLICY_GLOBAL
+
+
+def _flatten_at(desk_clock: bool, moment: datetime, is_half_day: bool) -> datetime:
+    if desk_clock:
+        return desk_flatten_deadline(moment)
+    return flatten_deadline(moment, is_half_day)
+
+
+def _should_flatten(
+    desk_clock: bool,
+    position: _Position,
+    moment: datetime,
+    deadline: datetime,
+    session_days: list[date],
+) -> bool:
+    if moment < deadline:
+        return False
+    if not desk_clock or position.horizon != "swing":
+        return True
+    day = moment.astimezone(NEW_YORK).date()
+    held = sum(1 for item in session_days if position.opened_on <= item <= day)
+    return held >= SWING_HOLD_SESSIONS
 
 
 def _client_id(strategy: str, symbol: str, role: str, moment: datetime, seq: int) -> str:

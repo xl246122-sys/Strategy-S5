@@ -64,12 +64,18 @@ class Route:
 
 
 def route(regime: Regime, in_opening_window: bool) -> Route:
-    """Strategy gate. S4 here is offline research permission, not a live switch."""
+    """Strategy gate. S4 here is offline research permission, not a live switch.
 
+    S3 is an all-session opening-range break. The 09:30-10:00 clock is kept on
+    the snapshot and does not close the strategy. New entries still stop at
+    15:45 through entry_window_open.
+    """
+
+    del in_opening_window
     if regime in {Regime.UNKNOWN, Regime.HIGH_VOL_PANIC}:
         return Route(False, False, False, False, False)
     s1 = regime == Regime.TREND_UP
-    s3 = in_opening_window and regime in {Regime.TREND_UP, Regime.SIDEWAYS}
+    s3 = regime in {Regime.TREND_UP, Regime.SIDEWAYS}
     s4 = regime == Regime.SIDEWAYS
     return Route(True, s1, s1, s3, s4)
 

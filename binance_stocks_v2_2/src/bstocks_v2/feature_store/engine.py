@@ -57,13 +57,43 @@ class _Sym:
     hist_atr: dict[str, list[Decimal]] = field(default_factory=dict)
     session_norms: list[Decimal | None] = field(default_factory=list)
     session_vwaps: list[Decimal | None] = field(default_factory=list)
+    bar_minutes: int = 5
+    rsi_period: int = RSI_PERIOD
+    atr_period: int = ATR_PERIOD
+    trend_bars: int = TREND_BARS
+    slope_lag: int = SLOPE_LAG
+    feeds: tuple[str, ...] = ("sip",)
 
 
 class CausalFeatureBook:
-    """Append-only book. Each symbol is updated only with its own closed bars."""
+    """Append-only book. Each symbol is updated only with its own closed bars.
 
-    def __init__(self, calendar: XnysCalendar) -> None:
+    Defaults are the frozen five-minute profile. A longer bar passes its own
+    periods; it does not change books that keep the defaults.
+    """
+
+    def __init__(
+        self,
+        calendar: XnysCalendar,
+        *,
+        minutes: int = 5,
+        rsi_period: int = RSI_PERIOD,
+        atr_period: int = ATR_PERIOD,
+        trend_bars: int = TREND_BARS,
+        slope_lag: int = SLOPE_LAG,
+        feeds: tuple[str, ...] = ("sip",),
+    ) -> None:
+        if minutes < 1 or rsi_period < 1 or atr_period < 1 or trend_bars < 1 or slope_lag < 1:
+            raise ValueError("feature profile")
+        if not feeds:
+            raise ValueError("feature feed")
         self.calendar = calendar
+        self._minutes = minutes
+        self._rsi_period = rsi_period
+        self._atr_period = atr_period
+        self._trend_bars = trend_bars
+        self._slope_lag = slope_lag
+        self._feeds = tuple(item.casefold() for item in feeds)
         self._states: dict[str, _Sym] = {}
         self.latest: dict[str, SymbolSnapshot] = {}
 
@@ -73,7 +103,15 @@ class CausalFeatureBook:
         _require_interval(bar)
         if self.calendar.classify(bar.start, bar.end) != "RTH":
             return None
+        fresh = bar.symbol not in self._states
         state = self._states.setdefault(bar.symbol, _Sym())
+        if fresh:
+            state.bar_minutes = self._minutes
+            state.rsi_period = self._rsi_period
+            state.atr_period = self._atr_period
+            state.trend_bars = self._trend_bars
+            state.slope_lag = self._slope_lag
+            state.feeds = self._feeds
         snapshot = _advance(state, bar)
         if snapshot is not None:
             self.latest[bar.symbol] = snapshot
@@ -106,13 +144,13 @@ def _advance(state: _Sym, bar: FeatureBar) -> SymbolSnapshot:
             state.opened_on_time = False
             state.intact = False
     else:
-        expected = state.last_start + timedelta(minutes=5)
+        expected = state.last_start + timedelta(minutes=state.bar_minutes)
         if bar.start != expected:
             state.intact = False
-    if not _valid(bar):
+    if not _valid(bar, state.feeds):
         state.intact = False
 
-    accepted = state.intact and _valid(bar)
+    accepted = state.intact and _valid(bar, state.feeds)
     ret: Decimal | None = None
     if accepted:
         _push_rsi(state, bar.close)
@@ -171,8 +209,8 @@ def _advance(state: _Sym, bar: FeatureBar) -> SymbolSnapshot:
         state.session_norms.append(None)
         state.session_vwaps.append(None)
 
-    trend_z, rms6 = _trend(state.session_norms)
-    slope = _slope(state.session_vwaps)
+    trend_z, rms6 = _trend(state.session_norms, state.trend_bars)
+    slope = _slope(state.session_vwaps, state.slope_lag)
     above = None if vwap is None else bar.close > vwap
     warmed = (
         state.intact
@@ -243,11 +281,11 @@ def _push_rsi(state: _Sym, close: Decimal) -> None:
     delta = close - previous
     gain = delta if delta > 0 else Decimal(0)
     loss = -delta if delta < 0 else Decimal(0)
-    span = Decimal(RSI_PERIOD)
+    span = Decimal(state.rsi_period)
     if not state.rsi_seeded:
         state.rsi_gains.append(gain)
         state.rsi_losses.append(loss)
-        if len(state.rsi_gains) < RSI_PERIOD:
+        if len(state.rsi_gains) < state.rsi_period:
             state.current_rsi = None
             return
         state.rsi_avg_gain = sum(state.rsi_gains, start=Decimal(0)) / span
@@ -273,10 +311,10 @@ def _push_atr(state: _Sym, high: Decimal, low: Decimal) -> None:
         true_range = high - low
     else:
         true_range = max(high - low, abs(high - previous), abs(low - previous))
-    span = Decimal(ATR_PERIOD)
+    span = Decimal(state.atr_period)
     if not state.atr_seeded:
         state.atr_seed.append(true_range)
-        if len(state.atr_seed) < ATR_PERIOD:
+        if len(state.atr_seed) < state.atr_period:
             state.current_atr = None
             return
         state.current_atr = sum(state.atr_seed, start=Decimal(0)) / span
@@ -294,22 +332,25 @@ def _published_vwap(state: _Sym) -> Decimal | None:
     return state.vwap_num / state.vwap_den
 
 
-def _trend(norms: list[Decimal | None]) -> tuple[Decimal | None, Decimal | None]:
-    if len(norms) < TREND_BARS:
+def _trend(
+    norms: list[Decimal | None],
+    bars: int = TREND_BARS,
+) -> tuple[Decimal | None, Decimal | None]:
+    if len(norms) < bars:
         return None, None
-    window = norms[-TREND_BARS:]
+    window = norms[-bars:]
     if any(item is None for item in window):
         return None, None
     values = [item for item in window if item is not None]
     total = sum(values, start=Decimal(0))
-    square = sum((item * item for item in values), start=Decimal(0)) / Decimal(TREND_BARS)
+    square = sum((item * item for item in values), start=Decimal(0)) / Decimal(bars)
     return total, square.sqrt()
 
 
-def _slope(vwaps: list[Decimal | None]) -> Decimal | None:
-    if len(vwaps) < SLOPE_LAG + 1:
+def _slope(vwaps: list[Decimal | None], lag: int = SLOPE_LAG) -> Decimal | None:
+    if len(vwaps) < lag + 1:
         return None
-    window = vwaps[-(SLOPE_LAG + 1) :]
+    window = vwaps[-(lag + 1) :]
     if any(item is None for item in window):
         return None
     first = window[0]
@@ -332,8 +373,8 @@ def _trade_price(bar: FeatureBar) -> Decimal:
     return (bar.high + bar.low + bar.close) / Decimal(3)
 
 
-def _valid(bar: FeatureBar) -> bool:
-    if bar.feed.casefold() != "sip":
+def _valid(bar: FeatureBar, feeds: tuple[str, ...] = ("sip",)) -> bool:
+    if bar.feed.casefold() not in feeds:
         return False
     if bar.price_factor <= 0 or bar.volume < 0:
         return False

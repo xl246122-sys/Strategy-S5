@@ -260,14 +260,14 @@ def test_route_matrix_and_the_opening_window() -> None:
         True,
         False,
     )
-    assert (decisions[1].s1_enabled, decisions[1].s3_enabled) == (True, False)
+    assert (decisions[1].s1_enabled, decisions[1].s3_enabled) == (True, True)
     assert decisions[2].regime == Regime.SIDEWAYS
     assert (decisions[2].s3_enabled, decisions[2].s4_research_enabled, decisions[2].s1_enabled) == (
         True,
         True,
         False,
     )
-    assert decisions[3].s3_enabled is False and decisions[3].s4_research_enabled is True
+    assert decisions[3].s3_enabled is True and decisions[3].s4_research_enabled is True
     assert decisions[4].regime == Regime.TREND_DOWN
     assert decisions[4].entries_allowed is True
     assert decisions[4].s1_enabled is False
@@ -362,7 +362,7 @@ def test_thirteen_etfs_reach_sideways_only_after_the_feature_window() -> None:
     assert seen[5].s1_enabled is False
     assert seen[6].regime == Regime.SIDEWAYS
     assert seen[6].in_opening_window is False
-    assert seen[6].s3_enabled is False
+    assert seen[6].s3_enabled is True
     assert seen[6].entries_allowed is True
 
 

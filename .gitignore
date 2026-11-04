@@ -17,9 +17,11 @@ __pycache__/
 *.pyc
 *.egg-info/
 
-# Research stores stay outside the code snapshot
+# Research stores, plans, and one-off dumps stay outside the code snapshot
 data_v2_2/
 K-Line-DataBase/
+Dev.Plan/
+binance_stocks_v2_2/research_runs/
 *.sqlite
 .coverage
 desktop.ini
